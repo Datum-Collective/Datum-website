@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Datum</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0a;
+    --fg:#e8e8e8;
+    --dim:#333333;
+    --mid:#7a7a7a;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    -webkit-font-smoothing:antialiased;
+  }
+  #ascii-bg{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    display:block;
+  }
+  .veil{
+    position:fixed;
+    inset:0;
+    z-index:1;
+    background:linear-gradient(180deg, rgba(10,10,10,.30) 0%, rgba(10,10,10,.55) 45%, rgba(10,10,10,.80) 100%);
+    pointer-events:none;
+  }
+  main{
+    position:relative;
+    z-index:2;
+    max-width:600px;
+    margin:0 auto;
+    padding:16vh 6vw 12vh;
+  }
+  section{ margin-bottom:4.5rem; }
+  h1{
+    font-size:clamp(2rem, 6vw, 3rem);
+    font-weight:500;
+    letter-spacing:-0.01em;
+    margin:0 0 .8rem;
+  }
+  .tagline{
+    font-size:.95rem;
+    color:var(--mid);
+    line-height:1.7;
+    margin:0 0 .5rem;
+    max-width:50ch;
+  }
+  h2{
+    font-size:.9rem;
+    font-weight:400;
+    color:var(--mid);
+    margin:0 0 .9rem;
+  }
+  ul{ list-style:none; margin:0; padding:0; }
+  li{ margin-bottom:.5rem; }
+  a{
+    color:var(--fg);
+    text-decoration:none;
+    border-bottom:1px solid var(--dim);
+    transition:border-color .15s ease, color .15s ease;
+  }
+  a:hover, a:focus-visible{
+    color:#fff;
+    border-color:var(--fg);
+  }
+  a:focus-visible{ outline:2px solid var(--fg); outline-offset:3px; border-radius:1px; }
+  .team-item{
+    display:flex;
+    justify-content:space-between;
+    gap:1rem;
+    max-width:44ch;
+    padding:.4rem 0;
+    border-bottom:1px dotted var(--dim);
+    font-size:.9rem;
+  }
+  .team-item span:last-child{ color:var(--mid); }
+  footer{
+    position:relative;
+    z-index:2;
+    max-width:600px;
+    margin:0 auto;
+    padding:0 6vw 8vh;
+    color:var(--dim);
+    font-size:.75rem;
+  }
+  @media (max-width:640px){
+    main{ padding:12vh 6vw 10vh; }
+    section{ margin-bottom:3.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="ascii-bg" aria-hidden="true"></canvas>
+<div class="veil"></div>
+
+<main>
+  <section class="hero">
+    <h1>Datum</h1>
+    <p class="tagline">We turn scattered numbers into decisions worth trusting — built by students who got tired of guessing.</p>
+    <p class="tagline">Currently in early access.</p>
+  </section>
+
+  <section class="email">
+    <h2>Email for inquiries, feedback, or just to say hi:</h2>
+    <p><a href="mailto:atdatum.co@gmail.com">atdatum.co@gmail.com</a></p>
+  </section>
+
+  <section class="external">
+    <h2>External:</h2>
+    <ul>
+      <li><a href="https://www.instagram.com/datum.blog/" target="_blank" rel="noopener">Instagram</a></li>
+      <li><a href="https://www.linkedin.com/company/datum-collective/posts/?feedView=all" target="_blank" rel="noopener">LinkedIn</a></li>
+      <li><a href="https://x.com/DatumCollective" target="_blank" rel="noopener">X</a></li>
+      <li><a href="https://github.com/Datum-Collective" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </section>
+
+  <section class="team">
+    <h2>Meet the team:</h2>
+    <ul>
+      <li class="team-item"><span>Shivamsh</span><span>Founder, CEO</span></li>
+      <li class="team-item"><span>Dan</span><span>Founder, CTO</span></li>
+      <li class="team-item"><span>Agrajeet</span><span>Engineering</span></li>
+    </ul>
+  </section>
+</main>
+
+<footer>© <span id="year"></span> Datum.</footer>
+
+<script>
+(function(){
+  const canvas = document.getElementById('ascii-bg');
+  const ctx = canvas.getContext('2d');
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const CELL_W = 12;
+  const CELL_H = 20;
+  const GLYPH_SIZE = CELL_H - 6;
+
+  const NOISE_CHARS = ['.', ':', ',', "'", '`', ' ', ' ', ' ', ' '];
+  const LETTER_CHARS = ['D','A','T','U','M','#','%','&','@','+'];
+
+  let cssW, cssH, cols, rows, mask, cells;
+  let mouse = { x:-9999, y:-9999 };
+
+  function randChar(isLetter){
+    const set = isLetter ? LETTER_CHARS : NOISE_CHARS;
+    return set[(Math.random()*set.length)|0];
+  }
+
+  function buildMask(){
+    const off = document.createElement('canvas');
+    off.width = cols;
+    off.height = rows;
+    const octx = off.getContext('2d');
+    octx.fillStyle = '#000';
+    octx.fillRect(0,0,cols,rows);
+    octx.fillStyle = '#fff';
+    octx.textAlign = 'center';
+    octx.textBaseline = 'middle';
+
+    let fontSize = Math.max(4, rows * 0.6);
+    octx.font = `bold ${fontSize}px Arial, sans-serif`;
+    let w = octx.measureText('DATUM').width;
+    while(w > cols * 0.92 && fontSize > 4){
+      fontSize -= 1;
+      octx.font = `bold ${fontSize}px Arial, sans-serif`;
+      w = octx.measureText('DATUM').width;
+    }
+    octx.fillText('DATUM', cols/2, rows/2 + 1);
+
+    const data = octx.getImageData(0,0,cols,rows).data;
+    const m = new Uint8Array(cols*rows);
+    for(let i=0;i<cols*rows;i++){
+      m[i] = data[i*4] > 128 ? 1 : 0;
+    }
+    return m;
+  }
+
+  function setup(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cssW = window.innerWidth;
+    cssH = window.innerHeight;
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    cols = Math.max(1, Math.floor(cssW / CELL_W));
+    rows = Math.max(1, Math.floor(cssH / CELL_H));
+    mask = buildMask();
+    cells = new Array(cols*rows);
+    for(let i=0;i<cells.length;i++){
+      cells[i] = randChar(mask[i] === 1);
+    }
+    draw();
+  }
+
+  function draw(){
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0,0,cssW,cssH);
+    ctx.font = `${GLYPH_SIZE}px 'IBM Plex Mono', monospace`;
+    ctx.textBaseline = 'top';
+
+    for(let y=0;y<rows;y++){
+      for(let x=0;x<cols;x++){
+        const idx = y*cols + x;
+        const isLetter = mask[idx] === 1;
+        const px = x*CELL_W;
+        const py = y*CELL_H;
+
+        let near = false;
+        if(!reduceMotion){
+          const dx = px - mouse.x;
+          const dy = py - mouse.y;
+          near = (dx*dx + dy*dy) < 8100; // 90px radius
+        }
+
+        ctx.fillStyle = isLetter
+          ? (near ? '#ffffff' : '#a3a3a3')
+          : (near ? '#5a5a5a' : '#242424');
+
+        ctx.fillText(cells[idx], px, py);
+      }
+    }
+  }
+
+  let last = 0;
+  function loop(t){
+    requestAnimationFrame(loop);
+    if(t - last < 100) return; // ~10fps
+    last = t;
+
+    const flickerCount = Math.floor(cols*rows*0.012);
+    for(let i=0;i<flickerCount;i++){
+      const idx = (Math.random()*cells.length)|0;
+      cells[idx] = randChar(mask[idx] === 1);
+    }
+    draw();
+  }
+
+  if(!reduceMotion){
+    window.addEventListener('mousemove', (e)=>{
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+    window.addEventListener('mouseleave', ()=>{
+      mouse.x = -9999; mouse.y = -9999;
+    });
+  }
+
+  let resizeTimer;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(setup, 150);
+  });
+
+  setup();
+  if(!reduceMotion){
+    requestAnimationFrame(loop);
+  }
+})();
+</script>
+</body>
+</html>
